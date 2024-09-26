@@ -1,6 +1,6 @@
-# Chainlit Starter App
+# Movie Assistant 🎥 🍿 🎬 🥤
 
-This project is a starter Chainlit application that demonstrates a simple integration with OpenAI's API. It showcases the following key features:
+This project is a simple movie assistant that uses OpenAI's API to generate responses to user queries about movies, get "now playing" movies, get movie showtimes, and purchase movie tickets. The assistant can also give reviews and ratings for movies from the internet.
 
 1. **OpenAI Integration**: The app is connected to OpenAI's API, allowing it to leverage state-of-the-art language models for generating responses.
 
@@ -19,6 +19,7 @@ As a convenience, on start of a new chat session, a system prompt is added as th
 ### 1. Create a virtual environment
 
 First, create a virtual environment to isolate the project dependencies:
+
 ```bash
 python -m venv .venv
 ```
@@ -53,7 +54,7 @@ To run the app, use the following command:
 
 ```bash
 chainlit run app.py -w
-``` 
+```
 
 ## Updating dependencies
 
@@ -62,11 +63,13 @@ If you need to update the project dependencies, follow these steps:
 1. Update the `requirements.in` file with the new package or version.
 
 2. Install `pip-tools` if you haven't already:
+
    ```bash
    pip install pip-tools
    ```
 
 3. Compile the new `requirements.txt` file:
+
    ```bash
    pip-compile requirements.in
    ```
@@ -77,4 +80,13 @@ If you need to update the project dependencies, follow these steps:
    ```
 
 This process ensures that all dependencies are properly resolved and pinned to specific versions for reproducibility.
+
 # FunctionCalls-LLM
+
+Things you can with Movie Assistant:
+
+- Get the "now playing" movies
+- Get movie showtimes
+- Purchase movie tickets
+- Get reviews and ratings for movies
+- Generate a response to a user query about movies
