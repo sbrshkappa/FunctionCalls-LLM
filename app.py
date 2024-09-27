@@ -2,7 +2,6 @@ from dotenv import load_dotenv
 import chainlit as cl
 import json
 import movie_functions
-import traceback
 
 load_dotenv()
 
@@ -46,7 +45,8 @@ note that the location can be city or zipcode. If the user provides an unknown l
 Make sure you have all the necessary information from the user for this call. It should ask the user for confirmation, and 
 once the user confirms the purchase invoke the buy_ticket function.
 - get_reviews(movie_id): Use when the user requests reviews for a specific movie and provide a brief summary of the reviews with audience score, critic score, 
-some key quotes from the reviews with the link to the full reviews, and also some notable moments from the film without revealing the plot of the movie.
+some key quotes from the reviews with the link to the full reviews, and also some notable moments from the film without revealing the plot of the movie. Use this
+to get context about the movie from critics.
 
 Only generate a function call when the user explicitly requests information that requires one of these functions. 
 For all other queries, respond directly to the user with your knowledge about movies.
@@ -101,49 +101,45 @@ def parse_response_for_function_call(response_message):
 
     return function_call
 
-'''@cl.on_message
-@observe()
-async def on_message(message: cl.Message):
-    response_contains_function_call = False
-    message_history = cl.user_session.get("message_history", [])
-    message_history.append({"role": "user", "content": message.content})
+async def determine_if_reviews_should_be_fetched(message_history, message_content):
+    fetch_reviews_prompt = f"""
+    Based on the conversation, determine if the topic is about a specific movie.
+
+    Determine if the user is asking a question that would be aided by knowing what critics are saying about the movie. 
+    Determine if the reviews for that movie have already been provided in the conversation. If so, do not fetch reviews.
+
+    Your only role is to evaluate the conversation and the latest user message, and decide whether to fetch reviews.
+
+    Conversation: {message_history}
+    Latest User Message: {message_content}
+
+    Output the current movie, id, a boolean to fetch reviews in JSON format, and your
+    rationale. Do not output as a code block.
+
+    {{
+        "movie": "title",
+        "id": 123,
+        "fetch_reviews": true
+        "rationale": "reasoning"
+    }}
+
+    if you think reviews should not be fetched, set fetch_reviews to false.
+
+    All responses should be in the above JSON format. If there is no movie in the conversation, set movie and id to null.
+    """
+
+    context_response = await client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": fetch_reviews_prompt},
+            {"role": "user", "content": message_content}
+        ],
+        temperature=0.2
+    )
+
+    return context_response.choices[0].message.content
     
-    response_message = await generate_response(client, message_history, gen_kwargs)
-    response_contains_function_call = parse_response_for_function_call(response_message)
 
-    while(response_contains_function_call):
-        if response_contains_function_call:
-
-            # If a function call is detected, execute the corresponding function
-            function_name = response_contains_function_call["function"]
-            parameters = response_contains_function_call["parameters"]
-
-            # Let the user know which function is being called
-            await cl.Message(content=f"Calling function: {function_name}").send()
-                
-            # Append the function result to the message history
-            message_history.append({"role": "assistant", "name": function_name, "content": function_name})
-            
-            print("Function Name:", function_name, "Parameters:", parameters)
-        
-            if hasattr(movie_functions, function_name) and callable(getattr(movie_functions, function_name)):
-                function_result = getattr(movie_functions, function_name)(**parameters)
-                
-                # Send the function result to the user
-                await cl.Message(content=f"Here's the result of the function call:\n\n{function_result}").send()
-                
-                # Append the function result to the message history
-                message_history.append({"role": "assistant", "name": function_name, "content": function_result})
-                
-                # Generate a new response incorporating the function result
-                response_message = await generate_response(client, message_history, gen_kwargs)
-                response_contains_function_call = parse_response_for_function_call(response_message)
-        else:
-            response_contains_function_call = False
-
-    message_history.append({"role": "assistant", "content": response_message.content})
-    cl.user_session.set("message_history", message_history)
-'''
 
 @cl.on_message
 @observe()
@@ -152,12 +148,21 @@ async def on_message(message: cl.Message):
     message_history.append({"role": "user", "content": message.content})
     
     while True:
+        
+        # Determine if reviews should be fetched
+        context_response = json.loads(await determine_if_reviews_should_be_fetched(message_history, message.content))
+        print(context_response)
+        if(context_response['fetch_reviews']):
+            movie_id = context_response['id']
+            reviews = movie_functions.get_reviews(movie_id)
+            reviews = f"Reviews for {context_response['movie']} (ID: {movie_id}):\n\n{reviews}"
+            message_history.append({"role": "system", "content": f"CONTEXT: {reviews}"})
+
         response_message = await generate_response(client, message_history, gen_kwargs)
         function_call = parse_response_for_function_call(response_message)
         
         if not function_call:
             # No function call, send the response to the user and break the loop
-            # await cl.Message(content=response_message.content).send()
             message_history.append({"role": "assistant", "content": response_message.content})
             break
         
@@ -165,9 +170,7 @@ async def on_message(message: cl.Message):
         function_name = function_call["function"]
         parameters = function_call["parameters"]
         
-        # await cl.Message(content=f"Calling function: {function_name}").send()
-        
-        if hasattr(movie_functions, function_name) and callable(getattr(movie_functions, function_name)):
+        if hasattr(movie_functions, function_name) and callable(getattr(movie_functions, function_name)):     
             try:
                 function_result = getattr(movie_functions, function_name)(**parameters)
                 await cl.Message(content=f"Function result:\n\n{function_result}").send()
