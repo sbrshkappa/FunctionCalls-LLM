@@ -90,3 +90,7 @@ Things you can with Movie Assistant:
 - Purchase movie tickets
 - Get reviews and ratings for movies
 - Generate a response to a user query about movies
+
+# Here's a Demo with manual function calling:
+
+![Movie Assistant Demo with Manual Function Calling](./movie-assistant.gif)
